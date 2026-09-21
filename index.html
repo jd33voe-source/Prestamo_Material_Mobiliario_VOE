@@ -141,13 +141,19 @@
       let estado = "";
       const radios = cells[2].querySelectorAll("input[type=radio]");
       radios.forEach(r => { if (r.checked) estado = r.value; });
+
+      // Obtenemos los valores de las fechas y validamos si están vacíos
+      const fechaPrestamo = cells[3].querySelector("input").value;
+      const fechaDevolucion = cells[4].querySelector("input").value;
+
       registros.push({
         area,
         cantidad: cells[0].querySelector("input").value,
         descripcion: cells[1].querySelector("input").value,
         estado,
-        fecha_prestamo: cells[3].querySelector("input").value,
-        fecha_devolucion: cells[4].querySelector("input").value,
+        // Si la fecha está vacía, enviamos null en lugar de ""
+        fecha_prestamo: fechaPrestamo !== "" ? fechaPrestamo : null,
+        fecha_devolucion: fechaDevolucion !== "" ? fechaDevolucion : null,
         solicita: cells[5].querySelector("input").value,
         autoriza: cells[6].querySelector("input").value
       });
@@ -161,7 +167,6 @@
       alert("✅ Datos guardados correctamente en Supabase");
     }
   }
-
   async function verHistorial() {
     const { data, error } = await dbClient.from("prestamos").select("*").order("id", { ascending: false });
     if (error) {
