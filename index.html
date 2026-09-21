@@ -76,15 +76,17 @@
           <td><button class="delete-btn" onclick="deleteRow(this)">🗑️</button></td>
         </tr>
       </tbody>
-    </table>
+ </table>
 
     <button class="btn btn-add" onclick="addRow()">➕ Agregar material</button>
     <button class="btn btn-clear" onclick="clearTable()">🧹 Limpiar todo</button>
     <button class="btn btn-add" onclick="guardarEnBD()">💾 Guardar en BD</button>
-    <button class="btn btn-history" onclick="verHistorial()">📜 Ver historial</button>
+    <!-- Cambiamos el onclick y agregamos el ID -->
+    <button id="btnHistorial" class="btn btn-history" onclick="toggleHistorial()">📜 Ver historial</button>
     <button class="btn btn-pdf" onclick="generatePDF()">📄 Generar PDF</button>
 
-    <div id="historial"></div>
+    <!-- Contenedor del historial -->
+    <div id="historial" style="display: none; margin-top: 20px;"></div>
   </main>
 
   <!-- Script único -->
@@ -220,39 +222,59 @@ async function guardarEnBD() {
     }
   }
 
-  async function verHistorial() {
-    const { data, error } = await dbClient.from("solicitudes_prestamo").select("*").order("id", { ascending: false });
-    if (error) {
-      alert("❌ Error al consultar historial: " + error.message);
-      return;
-    }
+  let historialVisible = false; // Estado inicial
 
-    let html = "<h3>Historial de Solicitudes</h3><table><thead><tr><th>ID</th><th>Área</th><th>Fecha Préstamo</th><th>Solicita</th><th>Autoriza</th><th>Artículos</th><th>Acción</th></tr></thead><tbody>";
-    
-    data.forEach(reg => {
-      let listaArticulosHtml = "<ul style='margin: 0; padding-left: 15px; text-align: left;'>";
-      if (reg.articulos && Array.isArray(reg.articulos)) {
-        reg.articulos.forEach(art => {
-          listaArticulosHtml += `<li><b>${art.cantidad}</b> - ${art.descripcion} (<i>${art.estado}</i>)</li>`;
-        });
+  async function toggleHistorial() {
+    const contenedor = document.getElementById("historial");
+    const boton = document.getElementById("btnHistorial");
+
+    if (!historialVisible) {
+      // Si está oculto, consultamos los datos a Supabase
+      const { data, error } = await dbClient.from("solicitudes_prestamo").select("*").order("id", { ascending: false });
+      
+      if (error) {
+        alert("❌ Error al consultar historial: " + error.message);
+        return;
       }
-      listaArticulosHtml += "</ul>";
 
-      html += `<tr>
-        <td><b>#${reg.id}</b></td>
-        <td>${reg.area}</td>
-        <td>${reg.fecha_prestamo || "N/A"}</td>
-        <td>${reg.solicita}</td>
-        <td>${reg.autoriza}</td>
-        <td>${listaArticulosHtml}</td>
-        <td><button class="btn btn-pdf" onclick="generatePDFRegistro(${reg.id})">📄 PDF</button></td>
-      </tr>`;
-    });
-    
-    html += "</tbody></table>";
-    document.getElementById("historial").innerHTML = html;
+      let html = "<h3>Historial de Solicitudes</h3><table><thead><tr><th>ID</th><th>Área</th><th>Fecha Préstamo</th><th>Solicita</th><th>Autoriza</th><th>Artículos</th><th>Acción</th></tr></thead><tbody>";
+      
+      data.forEach(reg => {
+        let listaArticulosHtml = "<ul style='margin: 0; padding-left: 15px; text-align: left;'>";
+        if (reg.articulos && Array.isArray(reg.articulos)) {
+          reg.articulos.forEach(art => {
+            listaArticulosHtml += `<li><b>${art.cantidad}</b> - ${art.descripcion} (<i>${art.estado}</i>)</li>`;
+          });
+        }
+        listaArticulosHtml += "</ul>";
+
+        html += `<tr>
+          <td><b>#${reg.id}</b></td>
+          <td>${reg.area}</td>
+          <td>${reg.fecha_prestamo || "N/A"}</td>
+          <td>${reg.solicita}</td>
+          <td>${reg.autoriza}</td>
+          <td>${listaArticulosHtml}</td>
+          <td><button class="btn btn-pdf" onclick="generatePDFRegistro(${reg.id})">📄 PDF</button></td>
+        </tr>`;
+      });
+      
+      html += "</tbody></table>";
+      contenedor.innerHTML = html;
+      
+      // Mostramos el contenedor y actualizamos el botón
+      contenedor.style.display = "block";
+      boton.textContent = "📂 Ocultar historial";
+      boton.style.backgroundColor = "#555"; 
+      historialVisible = true;
+    } else {
+      // Si ya está visible, lo ocultamos
+      contenedor.style.display = "none";
+      boton.textContent = "📜 Ver historial";
+      boton.style.backgroundColor = ""; 
+      historialVisible = false;
+    }
   }
-
   function generatePDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
