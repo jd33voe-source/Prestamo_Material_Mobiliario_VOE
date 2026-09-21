@@ -167,32 +167,40 @@
       alert("✅ Datos guardados correctamente en Supabase");
     }
   }
-  async function verHistorial() {
-    const { data, error } = await dbClient.from("prestamos").select("*").order("id", { ascending: false });
-    if (error) {
-      alert("❌ Error al consultar historial: " + error.message);
-      return;
-    }
+ async function verHistorial() {
+  const historialDiv = document.getElementById("historial");
 
-    let html = "<h3>Historial de préstamos</h3><table><thead><tr><th>ID</th><th>Área</th><th>Cantidad</th><th>Descripción</th><th>Estado</th><th>Fecha préstamo</th><th>Fecha devolución</th><th>Solicita</th><th>Autoriza</th><th>PDF</th></tr></thead><tbody>";
-    data.forEach(reg => {
-      html += `<tr>
-        <td>${reg.id}</td>
-        <td>${reg.area}</td>
-        <td>${reg.cantidad}</td>
-        <td>${reg.descripcion}</td>
-        <td>${reg.estado}</td>
-        <td>${reg.fecha_prestamo || ""}</td>
-        <td>${reg.fecha_devolucion || ""}</td>
-        <td>${reg.solicita}</td>
-        <td>${reg.autoriza}</td>
-        <td><button class="btn btn-pdf" onclick="generatePDFRegistro(${reg.id})">📄 PDF</button></td>
-      </tr>`;
-    });
-    html += "</tbody></table>";
-    document.getElementById("historial").innerHTML = html;
+  // Si ya está visible, lo ocultamos
+  if (historialDiv.innerHTML.trim() !== "") {
+    historialDiv.innerHTML = "";
+    return;
   }
 
+  // Si está vacío, consultamos y lo mostramos
+  const { data, error } = await dbClient.from("prestamos").select("*").order("id", { ascending: false });
+  if (error) {
+    alert("❌ Error al consultar historial: " + error.message);
+    return;
+  }
+
+  let html = "<h3>Historial de préstamos</h3><table><thead><tr><th>ID</th><th>Área</th><th>Cantidad</th><th>Descripción</th><th>Estado</th><th>Fecha préstamo</th><th>Fecha devolución</th><th>Solicita</th><th>Autoriza</th><th>PDF</th></tr></thead><tbody>";
+  data.forEach(reg => {
+    html += `<tr>
+      <td>${reg.id}</td>
+      <td>${reg.area}</td>
+      <td>${reg.cantidad}</td>
+      <td>${reg.descripcion}</td>
+      <td>${reg.estado}</td>
+      <td>${reg.fecha_prestamo || ""}</td>
+      <td>${reg.fecha_devolucion || ""}</td>
+      <td>${reg.solicita}</td>
+      <td>${reg.autoriza}</td>
+      <td><button class="btn btn-pdf" onclick="generatePDFRegistro(${reg.id})">📄 PDF</button></td>
+    </tr>`;
+  });
+  html += "</tbody></table>";
+  historialDiv.innerHTML = html;
+}
   function generatePDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
