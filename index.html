@@ -90,9 +90,8 @@
   <!-- Script único -->
 <script>
   const supabaseUrl = "https://tfcmjoqgypsdbjsdqkav.supabase.co";
-  const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRmY21qb3FneXBzZGJqc2Rxa2F2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwMDM1MzIsImV4cCI6MjEwNTU3OTUzMn0.ftJI-X792hsx-BN0e9LM11W-AJjQE-0Egp6ivgJb3fI"; 
+  const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRmY21qb3FneXBzZGJqc2Rxa2F2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwMDM1MzIsImV4cCI6MjEwNTU3OTUzMn0.ftJI-X792hsx-BN0e9LM11W-AJjQE-0Egp6ivgJb3fI";  
   
-  // Solución 2: Usar desestructuración y renombrar la variable cliente a dbClient
   const { createClient } = window.supabase;
   const dbClient = createClient(supabaseUrl, supabaseKey);
 
@@ -131,7 +130,8 @@
     addRow();
   }
 
- async function guardarEnBD() {
+  // FUNCIÓN UNIFICADA Y CORREGIDA PARA GUARDAR EN solicitudes_prestamo
+  async function guardarEnBD() {
     const area = document.getElementById("areaSolicitante").value;
     const tableRows = document.querySelectorAll("#materialTable tbody tr");
 
@@ -149,14 +149,12 @@
 
       const cantidadVal = cells[0].querySelector("input").value;
       
-      // Agregamos cada renglón al arreglo de artículos
       listaArticulos.push({
         cantidad: cantidadVal !== "" ? parseInt(cantidadVal, 10) : 0,
         descripcion: cells[1].querySelector("input").value,
         estado: estado
       });
 
-      // Tomamos los datos generales de la solicitud (del primer renglón)
       if (index === 0) {
         fechaPrestamoGlobal = cells[3].querySelector("input").value;
         fechaDevolucionGlobal = cells[4].querySelector("input").value;
@@ -171,17 +169,19 @@
       fecha_devolucion: fechaDevolucionGlobal !== "" ? fechaDevolucionGlobal : null,
       solicita: solicitaGlobal,
       autoriza: autorizaGlobal,
-      articulos: listaArticulos, // Guardamos la lista completa en el campo JSONB
+      articulos: listaArticulos, // Arreglo estructurado para JSONB
       creado: new Date().toISOString()
     };
+
+    console.log("Enviando solicitud a Supabase:", nuevaSolicitud);
 
     const { data, error } = await dbClient.from("solicitudes_prestamo").insert([nuevaSolicitud]);
 
     if (error) {
-      console.error("Detalle del error:", error);
+      console.error("Detalle del error de Supabase:", error);
       alert("❌ Error al guardar la solicitud: " + error.message);
     } else {
-      alert("✅ ¡Solicitud guardada correctamente!");
+      alert("✅ ¡Solicitud guardada correctamente en la tabla solicitudes_prestamo!");
       clearTable();
     }
   }
@@ -218,6 +218,7 @@
     html += "</tbody></table>";
     document.getElementById("historial").innerHTML = html;
   }
+
   function generatePDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
