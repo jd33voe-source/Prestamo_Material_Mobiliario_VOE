@@ -131,15 +131,29 @@
   }
 
   // FUNCIÓN UNIFICADA Y CORREGIDA PARA GUARDAR EN solicitudes_prestamo
-  async function guardarEnBD() {
-    const area = document.getElementById("areaSolicitante").value;
+async function guardarEnBD() {
+    const area = document.getElementById("areaSolicitante").value.trim();
     const tableRows = document.querySelectorAll("#materialTable tbody tr");
+
+    // 1. Validar que el área solicitante no esté vacía
+    if (!area) {
+      alert("❌ El campo 'Área solicitante' es obligatorio.");
+      return;
+    }
+
+    // 2. Validar que la tabla tenga al menos un renglón
+    if (tableRows.length === 0) {
+      alert("❌ Debe agregar al menos un artículo a la solicitud.");
+      return;
+    }
 
     const listaArticulos = [];
     let fechaPrestamoGlobal = null;
     let fechaDevolucionGlobal = null;
     let solicitaGlobal = "";
     let autorizaGlobal = "";
+    let datosCompletos = true;
+    let mensajeError = "";
 
     tableRows.forEach((tr, index) => {
       const cells = tr.querySelectorAll("td");
@@ -147,29 +161,49 @@
       const radios = cells[2].querySelectorAll("input[type=radio]");
       radios.forEach(r => { if (r.checked) estado = r.value; });
 
-      const cantidadVal = cells[0].querySelector("input").value;
-      
+      const cantidadVal = cells[0].querySelector("input").value.trim();
+      const descripcionVal = cells[1].querySelector("input").value.trim();
+
+      // Validar que cada artículo tenga cantidad y descripción
+      if (!cantidadVal || !descripcionVal) {
+        datosCompletos = false;
+        mensajeError = "Todos los artículos deben tener cantidad y descripción.";
+      }
+
       listaArticulos.push({
         cantidad: cantidadVal !== "" ? parseInt(cantidadVal, 10) : 0,
-        descripcion: cells[1].querySelector("input").value,
+        descripcion: descripcionVal,
         estado: estado
       });
 
+      // Tomamos los datos generales de la solicitud (del primer renglón)
       if (index === 0) {
-        fechaPrestamoGlobal = cells[3].querySelector("input").value;
-        fechaDevolucionGlobal = cells[4].querySelector("input").value;
-        solicitaGlobal = cells[5].querySelector("input").value;
-        autorizaGlobal = cells[6].querySelector("input").value;
+        fechaPrestamoGlobal = cells[3].querySelector("input").value.trim();
+        fechaDevolucionGlobal = cells[4].querySelector("input").value.trim();
+        solicitaGlobal = cells[5].querySelector("input").value.trim();
+        autorizaGlobal = cells[6].querySelector("input").value.trim();
       }
     });
 
+    // 3. Validar campos obligatorios globales (Fecha de préstamo, Solicita y Autoriza)
+    if (!fechaPrestamoGlobal || !solicitaGlobal || !autorizaGlobal) {
+      datosCompletos = false;
+      mensajeError = "Los campos de 'Fecha de préstamo', 'Solicita' y 'Autoriza' en el primer renglón son obligatorios.";
+    }
+
+    // Si falta algún dato obligatorio, detenemos el proceso y alertamos al usuario
+    if (!datosCompletos) {
+      alert("❌ Faltan datos obligatorios: " + mensajeError);
+      return;
+    }
+
     const nuevaSolicitud = {
       area: area,
-      fecha_prestamo: fechaPrestamoGlobal !== "" ? fechaPrestamoGlobal : null,
+      fecha_prestamo: fechaPrestamoGlobal,
       fecha_devolucion: fechaDevolucionGlobal !== "" ? fechaDevolucionGlobal : null,
       solicita: solicitaGlobal,
       autoriza: autorizaGlobal,
-      articulos: listaArticulos, // Arreglo estructurado para JSONB
+      articulos: listaArticulos,
       creado: new Date().toISOString()
     };
 
@@ -179,9 +213,9 @@
 
     if (error) {
       console.error("Detalle del error de Supabase:", error);
-      alert("❌ Error al guardar la solicitud: " + error.message);
+      alert("❌ Error al guardar la solicitud en la BD: " + error.message);
     } else {
-      alert("✅ ¡Solicitud guardada correctamente en la tabla solicitudes_prestamo!");
+      alert("✅ ¡Solicitud guardada correctamente!");
       clearTable();
     }
   }
