@@ -5,6 +5,7 @@
   <title>Formato de Préstamo</title>
   <script src="jspdf.umd.min.js"></script>
   <script src="jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; background: #f4f4f9; }
     header { background: #6a0dad; color: white; padding: 15px; text-align: center; display: flex; align-items: center; justify-content: center; }
@@ -21,6 +22,7 @@
     .btn-add { background-color: #28a745; color: white; }
     .btn-clear { background-color: #ffc107; color: black; }
     .btn-pdf { background-color: #6a0dad; color: white; }
+    .btn-history { background-color: #17a2b8; color: white; }
     .delete-btn { background-color: crimson; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer; }
     .delete-btn:hover { background-color: darkred; }
   </style>
@@ -77,10 +79,18 @@
 
     <button class="btn btn-add" onclick="addRow()">➕ Agregar material</button>
     <button class="btn btn-clear" onclick="clearTable()">🧹 Limpiar todo</button>
+    <button class="btn btn-add" onclick="guardarEnBD()">💾 Guardar en BD</button>
+    <button class="btn btn-history" onclick="verHistorial()">📜 Ver historial</button>
     <button class="btn btn-pdf" onclick="generatePDF()">📄 Generar PDF</button>
-  </main>
 
-  <script>
+    <div id="historial"></div>
+  </main>
+    <script>
+    // Inicializar Supabase
+    const supabaseUrl = "https://tfcmjoqgypsdbjsdqkav.supabase.co";
+    const supabaseKey = "TU_ANON_KEY"; // pega aquí tu anon key JWT
+    const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
     let rowCount = 1;
 
     function addRow() {
@@ -116,23 +126,77 @@
       addRow();
     }
 
+    async function guardarEnBD() {
+      const area = document.getElementById("areaSolicitante").value;
+      const tableRows = document.querySelectorAll("#materialTable tbody tr");
+
+      const registros = [];
+      tableRows.forEach((tr, i) => {
+        const cells = tr.querySelectorAll("td");
+        let estado = "";
+        const radios = cells[2].querySelectorAll("input[type=radio]");
+        radios.forEach(r => { if (r.checked) estado = r.value; });
+        registros.push({
+          area,
+          cantidad: cells[0].querySelector("input").value,
+          descripcion: cells[1].querySelector("input").value,
+          estado,
+          fecha_prestamo: cells[3].querySelector("input").value,
+          fecha_devolucion: cells[4].querySelector("input").value,
+          solicita: cells[5].querySelector("input").value,
+          autoriza: cells[6].querySelector("input").value
+        });
+      });
+
+      const { data, error } = await supabase.from("prestamos").insert(registros);
+
+      if (error) {
+        alert("❌ Error al guardar: " + error.message);
+      } else {
+        alert("✅ Datos guardados correctamente en Supabase");
+      }
+    }
+
+    async function verHistorial() {
+      const { data, error } = await supabase.from("prestamos").select("*").order("id", { ascending: false });
+      if (error) {
+        alert("❌ Error al consultar historial: " + error.message);
+        return;
+      }
+
+      let html = "<h3>Historial de préstamos</h3><table><thead><tr><th>ID</th><th>Área</th><th>Cantidad</th><th>Descripción</th><th>Estado</th><th>Fecha préstamo</th><th>Fecha devolución</th><th>Solicita</th><th>Autoriza</th><th>PDF</th></tr></thead><tbody>";
+      data.forEach(reg => {
+        html += `<tr>
+          <td>${reg.id}</td>
+          <td>${reg.area}</td>
+          <td>${reg.cantidad}</td>
+          <td>${reg.descripcion}</td>
+          <td>${reg.estado}</td>
+          <td>${reg.fecha_prestamo || ""}</td>
+          <td>${reg.fecha_devolucion || ""}</td>
+          <td>${reg.solicita}</td>
+          <td>${reg.autoriza}</td>
+          <td><button class="btn btn-pdf" onclick="generatePDFRegistro(${reg.id})">📄 PDF</button></td>
+        </tr>`;
+      });
+      html += "</tbody></table>";
+      document.getElementById("historial").innerHTML = html;
+    }
+
     function generatePDF() {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
 
-      // Encabezado
       doc.setFontSize(12);
       doc.text("JUNTA DISTRITAL EJECUTIVA 33", 105, 20, { align: "center" });
       doc.text("VOCALÍA DE ORGANIZACIÓN ELECTORAL", 105, 30, { align: "center" });
       doc.setFontSize(14);
       doc.text("FORMATO DE PRÉSTAMOS DE MOBILIARIO Y MATERIAL ELÉCTRICO", 105, 45, { align: "center" });
 
-      // Área solicitante
       const area = document.getElementById("areaSolicitante").value;
       doc.setFontSize(12);
       doc.text("Área solicitante: " + area, 20, 65);
 
-      // Construir tabla
       const rows = [];
       const tableRows = document.querySelectorAll("#materialTable tbody tr");
       tableRows.forEach((tr, i) => {
@@ -159,7 +223,6 @@
         headStyles: { fillColor: [106, 13, 173] }
       });
 
-      // Firmas
       const finalY = doc.lastAutoTable.finalY + 30;
       doc.setFontSize(12);
       doc.text("Firma del solicitante", 50, finalY);
@@ -170,6 +233,45 @@
 
       doc.save("Formato_Prestamo.pdf");
     }
+
+    async function generatePDFRegistro(id) {
+      const { data, error } = await supabase.from("prestamos").select("*").eq("id", id).single();
+      if (error) {
+        alert("❌ Error al generar PDF: " + error.message);
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      doc.setFontSize(12);
+      doc.text("JUNTA DISTRITAL EJECUTIVA 33", 105, 20, { align: "center" });
+      doc.text("VOCALÍA DE ORGANIZACIÓN ELECTORAL", 105, 30, { align: "center" });
+      doc.setFontSize(14);
+      doc.text("FORMATO DE PRÉSTAMOS DE MOBILIARIO Y MATERIAL ELÉCTRICO", 105, 45, { align: "center" });
+
+      doc.setFontSize(12);
+      doc.text("Área solicitante: " + data.area, 20, 65);
+
+      doc.autoTable({
+        head: [["Cantidad","Descripción","Estado","Fecha préstamo","Fecha devolución","Solicita","Autoriza"]],
+        body: [[data.cantidad, data.descripcion, data.estado, data.fecha_prestamo || "", data.fecha_devolucion || "", data.solicita, data.autoriza]],
+        startY: 80,
+        styles: { fontSize: 10, halign: "center" },
+        headStyles: { fillColor: [106, 13, 173] }
+      });
+
+      const finalY = doc.lastAutoTable.finalY + 30;
+      doc.setFontSize(12);
+      doc.text("Firma del solicitante", 50, finalY);
+      doc.text("Firma del que autoriza", 150, finalY);
+
+      doc.line(40, finalY - 5, 90, finalY - 5);
+      doc.line(140, finalY - 5, 190, finalY - 5);
+
+      doc.save("Prestamo_" + id + ".pdf");
+    }
   </script>
 </body>
 </html>
+
