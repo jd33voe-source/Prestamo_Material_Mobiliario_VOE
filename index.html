@@ -135,72 +135,89 @@
     const area = document.getElementById("areaSolicitante").value;
     const tableRows = document.querySelectorAll("#materialTable tbody tr");
 
-    const registros = [];
-    tableRows.forEach((tr, i) => {
+    const listaArticulos = [];
+    let fechaPrestamoGlobal = null;
+    let fechaDevolucionGlobal = null;
+    let solicitaGlobal = "";
+    let autorizaGlobal = "";
+
+    tableRows.forEach((tr, index) => {
       const cells = tr.querySelectorAll("td");
       let estado = "";
       const radios = cells[2].querySelectorAll("input[type=radio]");
       radios.forEach(r => { if (r.checked) estado = r.value; });
 
-      const fechaPrestamo = cells[3].querySelector("input").value;
-      const fechaDevolucion = cells[4].querySelector("input").value;
       const cantidadVal = cells[0].querySelector("input").value;
-
-      registros.push({
-        area: area,
+      
+      // Agregamos cada renglón al arreglo de artículos
+      listaArticulos.push({
         cantidad: cantidadVal !== "" ? parseInt(cantidadVal, 10) : 0,
         descripcion: cells[1].querySelector("input").value,
-        estado: estado,
-        fecha_prestamo: fechaPrestamo !== "" ? fechaPrestamo : null,
-        fecha_devolucion: fechaDevolucion !== "" ? fechaDevolucion : null,
-        solicita: cells[5].querySelector("input").value,
-        autoriza: cells[6].querySelector("input").value,
-        creado: new Date().toISOString() // <-- Esto llena automáticamente la columna timestamp
+        estado: estado
       });
+
+      // Tomamos los datos generales de la solicitud (del primer renglón)
+      if (index === 0) {
+        fechaPrestamoGlobal = cells[3].querySelector("input").value;
+        fechaDevolucionGlobal = cells[4].querySelector("input").value;
+        solicitaGlobal = cells[5].querySelector("input").value;
+        autorizaGlobal = cells[6].querySelector("input").value;
+      }
     });
 
-    const { data, error } = await dbClient.from("prestamos").insert(registros);
+    const nuevaSolicitud = {
+      area: area,
+      fecha_prestamo: fechaPrestamoGlobal !== "" ? fechaPrestamoGlobal : null,
+      fecha_devolucion: fechaDevolucionGlobal !== "" ? fechaDevolucionGlobal : null,
+      solicita: solicitaGlobal,
+      autoriza: autorizaGlobal,
+      articulos: listaArticulos, // Guardamos la lista completa en el campo JSONB
+      creado: new Date().toISOString()
+    };
+
+    const { data, error } = await dbClient.from("solicitudes_prestamo").insert([nuevaSolicitud]);
 
     if (error) {
-      alert("❌ Error al guardar: " + error.message);
+      console.error("Detalle del error:", error);
+      alert("❌ Error al guardar la solicitud: " + error.message);
     } else {
-      alert("✅ Datos guardados correctamente en Supabase");
+      alert("✅ ¡Solicitud guardada correctamente!");
+      clearTable();
     }
   }
- async function verHistorial() {
-  const historialDiv = document.getElementById("historial");
 
-  // Si ya está visible, lo ocultamos
-  if (historialDiv.innerHTML.trim() !== "") {
-    historialDiv.innerHTML = "";
-    return;
+  async function verHistorial() {
+    const { data, error } = await dbClient.from("solicitudes_prestamo").select("*").order("id", { ascending: false });
+    if (error) {
+      alert("❌ Error al consultar historial: " + error.message);
+      return;
+    }
+
+    let html = "<h3>Historial de Solicitudes</h3><table><thead><tr><th>ID</th><th>Área</th><th>Fecha Préstamo</th><th>Solicita</th><th>Autoriza</th><th>Artículos</th><th>Acción</th></tr></thead><tbody>";
+    
+    data.forEach(reg => {
+      let listaArticulosHtml = "<ul style='margin: 0; padding-left: 15px; text-align: left;'>";
+      if (reg.articulos && Array.isArray(reg.articulos)) {
+        reg.articulos.forEach(art => {
+          listaArticulosHtml += `<li><b>${art.cantidad}</b> - ${art.descripcion} (<i>${art.estado}</i>)</li>`;
+        });
+      }
+      listaArticulosHtml += "</ul>";
+
+      html += `<tr>
+        <td><b>#${reg.id}</b></td>
+        <td>${reg.area}</td>
+        <td>${reg.fecha_prestamo || "N/A"}</td>
+        <td>${reg.solicita}</td>
+        <td>${reg.autoriza}</td>
+        <td>${listaArticulosHtml}</td>
+        <td><button class="btn btn-pdf" onclick="generatePDFRegistro(${reg.id})">📄 PDF</button></td>
+      </tr>`;
+    });
+    
+    html += "</tbody></table>";
+    document.getElementById("historial").innerHTML = html;
   }
-
-  // Si está vacío, consultamos y lo mostramos
-  const { data, error } = await dbClient.from("prestamos").select("*").order("id", { ascending: false });
-  if (error) {
-    alert("❌ Error al consultar historial: " + error.message);
-    return;
-  }
-
-  let html = "<h3>Historial de préstamos</h3><table><thead><tr><th>ID</th><th>Área</th><th>Cantidad</th><th>Descripción</th><th>Estado</th><th>Fecha préstamo</th><th>Fecha devolución</th><th>Solicita</th><th>Autoriza</th><th>PDF</th></tr></thead><tbody>";
-  data.forEach(reg => {
-    html += `<tr>
-      <td>${reg.id}</td>
-      <td>${reg.area}</td>
-      <td>${reg.cantidad}</td>
-      <td>${reg.descripcion}</td>
-      <td>${reg.estado}</td>
-      <td>${reg.fecha_prestamo || ""}</td>
-      <td>${reg.fecha_devolucion || ""}</td>
-      <td>${reg.solicita}</td>
-      <td>${reg.autoriza}</td>
-      <td><button class="btn btn-pdf" onclick="generatePDFRegistro(${reg.id})">📄 PDF</button></td>
-    </tr>`;
-  });
-  html += "</tbody></table>";
-  historialDiv.innerHTML = html;
-}
   function generatePDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
@@ -253,7 +270,7 @@
   }
 
   async function generatePDFRegistro(id) {
-    const { data, error } = await dbClient.from("prestamos").select("*").eq("id", id).single();
+    const { data, error } = await dbClient.from("solicitudes_prestamo").select("*").eq("id", id).single();
     if (error) {
       alert("❌ Error al generar PDF: " + error.message);
       return;
@@ -270,10 +287,26 @@
 
     doc.setFontSize(12);
     doc.text("Área solicitante: " + data.area, 20, 65);
+    doc.text("Folio de Solicitud: #" + data.id, 20, 72);
+
+    const rows = [];
+    if (data.articulos && Array.isArray(data.articulos)) {
+      data.articulos.forEach(art => {
+        rows.push([
+          art.cantidad,
+          art.descripcion,
+          art.estado,
+          data.fecha_prestamo || "",
+          data.fecha_devolucion || "",
+          data.solicita,
+          data.autoriza
+        ]);
+      });
+    }
 
     doc.autoTable({
       head: [["Cantidad","Descripción","Estado","Fecha préstamo","Fecha devolución","Solicita","Autoriza"]],
-      body: [[data.cantidad, data.descripcion, data.estado, data.fecha_prestamo || "", data.fecha_devolucion || "", data.solicita, data.autoriza]],
+      body: rows,
       startY: 80,
       styles: { fontSize: 10, halign: "center" },
       headStyles: { fillColor: [106, 13, 173] }
@@ -287,7 +320,7 @@
     doc.line(40, finalY - 5, 90, finalY - 5);
     doc.line(140, finalY - 5, 190, finalY - 5);
 
-    doc.save("Prestamo_" + id + ".pdf");
+    doc.save("Solicitud_Prestamo_" + id + ".pdf");
   }
 </script>
 </body>
