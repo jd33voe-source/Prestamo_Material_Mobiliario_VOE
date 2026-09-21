@@ -36,24 +36,139 @@
   </header>
 
   <main>
-    <!-- resto del formulario igual que antes -->
+    <label>Área solicitante:</label>
+    <select id="areaSolicitante">
+      <option value="VE">VE</option>
+      <option value="VS">VS</option>
+      <option value="VCEyEC">VCEyEC</option>
+      <option value="VRFE">VRFE</option>
+    </select>
+
+    <table id="materialTable">
+      <thead>
+        <tr>
+          <th>Cantidad</th>
+          <th>Descripción</th>
+          <th>Estado</th>
+          <th>Fecha préstamo</th>
+          <th>Fecha devolución</th>
+          <th>Solicita</th>
+          <th>Autoriza</th>
+          <th>Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><input type="number"></td>
+          <td><input type="text"></td>
+          <td>
+            <label><input type="radio" name="estado0" value="Bueno"> Bueno</label>
+            <label><input type="radio" name="estado0" value="Regular"> Regular</label>
+            <label><input type="radio" name="estado0" value="Malo"> Malo</label>
+          </td>
+          <td><input type="date"></td>
+          <td><input type="date"></td>
+          <td><input type="text"></td>
+          <td><input type="text"></td>
+          <td><button class="delete-btn" onclick="deleteRow(this)">🗑️</button></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <button class="btn btn-add" onclick="addRow()">➕ Agregar material</button>
+    <button class="btn btn-clear" onclick="clearTable()">🧹 Limpiar todo</button>
+    <button class="btn btn-pdf" onclick="generatePDF()">📄 Generar PDF</button>
   </main>
 
   <script>
+    let rowCount = 1;
+
+    function addRow() {
+      const tbody = document.querySelector("#materialTable tbody");
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td><input type="number"></td>
+        <td><input type="text"></td>
+        <td>
+          <label><input type="radio" name="estado${rowCount}" value="Bueno"> Bueno</label>
+          <label><input type="radio" name="estado${rowCount}" value="Regular"> Regular</label>
+          <label><input type="radio" name="estado${rowCount}" value="Malo"> Malo</label>
+        </td>
+        <td><input type="date"></td>
+        <td><input type="date"></td>
+        <td><input type="text"></td>
+        <td><input type="text"></td>
+        <td><button class="delete-btn" onclick="deleteRow(this)">🗑️</button></td>
+      `;
+      tbody.appendChild(row);
+      rowCount++;
+    }
+
+    function deleteRow(button) {
+      const row = button.closest("tr");
+      row.remove();
+    }
+
+    function clearTable() {
+      const tbody = document.querySelector("#materialTable tbody");
+      tbody.innerHTML = "";
+      rowCount = 0;
+      addRow();
+    }
+
     function generatePDF() {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
 
-      // Logo (requiere base64 o convertir imagen)
-      // Ejemplo: doc.addImage(logoBase64, "PNG", 15, 10, 30, 30);
-
+      // Encabezado
       doc.setFontSize(12);
       doc.text("JUNTA DISTRITAL EJECUTIVA 33", 105, 20, { align: "center" });
       doc.text("VOCALÍA DE ORGANIZACIÓN ELECTORAL", 105, 30, { align: "center" });
       doc.setFontSize(14);
       doc.text("FORMATO DE PRÉSTAMOS DE MOBILIARIO Y MATERIAL ELÉCTRICO", 105, 45, { align: "center" });
 
-      // resto del código igual...
+      // Área solicitante
+      const area = document.getElementById("areaSolicitante").value;
+      doc.setFontSize(12);
+      doc.text("Área solicitante: " + area, 20, 65);
+
+      // Construir tabla
+      const rows = [];
+      const tableRows = document.querySelectorAll("#materialTable tbody tr");
+      tableRows.forEach((tr, i) => {
+        const cells = tr.querySelectorAll("td");
+        let estado = "";
+        const radios = cells[2].querySelectorAll("input[type=radio]");
+        radios.forEach(r => { if (r.checked) estado = r.value; });
+        rows.push([
+          cells[0].querySelector("input").value,
+          cells[1].querySelector("input").value,
+          estado,
+          cells[3].querySelector("input").value,
+          cells[4].querySelector("input").value,
+          cells[5].querySelector("input").value,
+          cells[6].querySelector("input").value
+        ]);
+      });
+
+      doc.autoTable({
+        head: [["Cantidad","Descripción","Estado","Fecha préstamo","Fecha devolución","Solicita","Autoriza"]],
+        body: rows,
+        startY: 80,
+        styles: { fontSize: 10, halign: "center" },
+        headStyles: { fillColor: [106, 13, 173] }
+      });
+
+      // Firmas
+      const finalY = doc.lastAutoTable.finalY + 30;
+      doc.setFontSize(12);
+      doc.text("Firma del solicitante", 50, finalY);
+      doc.text("Firma del que autoriza", 150, finalY);
+
+      doc.line(40, finalY - 5, 90, finalY - 5);
+      doc.line(140, finalY - 5, 190, finalY - 5);
+
+      doc.save("Formato_Prestamo.pdf");
     }
   </script>
 </body>
