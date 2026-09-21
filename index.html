@@ -275,20 +275,34 @@ async function guardarEnBD() {
       historialVisible = false;
     }
   }
-  function generatePDF() {
+ // Ejemplo aplicado para generatePDF (puedes replicarlo igual en generatePDFRegistro)
+  async function generatePDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
 
-    doc.setFontSize(12);
-    doc.text("JUNTA DISTRITAL EJECUTIVA 33", 105, 20, { align: "center" });
-    doc.text("VOCALÍA DE ORGANIZACIÓN ELECTORAL", 105, 30, { align: "center" });
-    doc.setFontSize(14);
-    doc.text("FORMATO DE PRÉSTAMOS DE MOBILIARIO Y MATERIAL ELÉCTRICO", 105, 45, { align: "center" });
+    // 1. Agregar Logotipo en la esquina superior izquierda
+    // Parámetros: (imagen, formato, x, y, ancho, alto)
+    // Nota: Puedes usar una URL directa de tu repositorio (ej. "./logo_ine.png") o una cadena en Base64
+    try {
+      const logoUrl = "ruta_o_url_de_tu_logo.png"; // Reemplaza con la ruta de tu imagen
+      doc.addImage(logoUrl, "PNG", 15, 12, 25, 25); 
+    } catch (e) {
+      console.warn("No se pudo cargar el logotipo automáticamente:", e);
+    }
+
+    // 2. Encabezados institucionales (ajustados para no encimarse con el logo)
+    doc.setFontSize(11);
+    doc.text("JUNTA DISTRITAL EJECUTIVA 33", 110, 18, { align: "center" });
+    doc.text("VOCALÍA DE ORGANIZACIÓN ELECTORAL", 110, 25, { align: "center" });
+    
+    doc.setFontSize(13);
+    doc.text("FORMATO DE PRÉSTAMOS DE MOBILIARIO Y MATERIAL ELÉCTRICO", 110, 38, { align: "center" });
 
     const area = document.getElementById("areaSolicitante").value;
     doc.setFontSize(12);
-    doc.text("Área solicitante: " + area, 20, 65);
+    doc.text("Área solicitante: " + area, 20, 55);
 
+    // 3. Recorrido de la tabla para el PDF
     const rows = [];
     const tableRows = document.querySelectorAll("#materialTable tbody tr");
     tableRows.forEach((tr, i) => {
@@ -310,12 +324,12 @@ async function guardarEnBD() {
     doc.autoTable({
       head: [["Cantidad","Descripción","Estado","Fecha préstamo","Fecha devolución","Solicita","Autoriza"]],
       body: rows,
-      startY: 80,
+      startY: 65, // Ajustado para dar espacio al nuevo encabezado
       styles: { fontSize: 10, halign: "center" },
       headStyles: { fillColor: [106, 13, 173] }
     });
 
-    const finalY = doc.lastAutoTable.finalY + 30;
+    const finalY = doc.lastAutoTable.finalY + 25;
     doc.setFontSize(12);
     doc.text("Firma del solicitante", 50, finalY);
     doc.text("Firma del que autoriza", 150, finalY);
@@ -325,7 +339,6 @@ async function guardarEnBD() {
 
     doc.save("Formato_Prestamo.pdf");
   }
-
   async function generatePDFRegistro(id) {
     const { data, error } = await dbClient.from("solicitudes_prestamo").select("*").eq("id", id).single();
     if (error) {
