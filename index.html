@@ -91,7 +91,8 @@
 <script>
   const supabaseUrl = "https://tfcmjoqgypsdbjsdqkav.supabase.co";
   const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRmY21qb3FneXBzZGJqc2Rxa2F2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwMDM1MzIsImV4cCI6MjEwNTU3OTUzMn0.ftJI-X792hsx-BN0e9LM11W-AJjQE-0Egp6ivgJb3fI"; // reemplaza con tu anon key real
-  const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+ const { createClient } = window.supabase;
+const dbClient = createClient(supabaseUrl, supabaseKey);
 
   let rowCount = 1;
 
@@ -128,63 +129,65 @@
     addRow();
   }
 
-  async function guardarEnBD() {
-    const area = document.getElementById("areaSolicitante").value;
-    const tableRows = document.querySelectorAll("#materialTable tbody tr");
+ async function guardarEnBD() {
+  const area = document.getElementById("areaSolicitante").value;
+  const tableRows = document.querySelectorAll("#materialTable tbody tr");
 
-    const registros = [];
-    tableRows.forEach((tr, i) => {
-      const cells = tr.querySelectorAll("td");
-      let estado = "";
-      const radios = cells[2].querySelectorAll("input[type=radio]");
-      radios.forEach(r => { if (r.checked) estado = r.value; });
-      registros.push({
-        area,
-        cantidad: cells[0].querySelector("input").value,
-        descripcion: cells[1].querySelector("input").value,
-        estado,
-        fecha_prestamo: cells[3].querySelector("input").value,
-        fecha_devolucion: cells[4].querySelector("input").value,
-        solicita: cells[5].querySelector("input").value,
-        autoriza: cells[6].querySelector("input").value
-      });
+  const registros = [];
+  tableRows.forEach((tr, i) => {
+    const cells = tr.querySelectorAll("td");
+    let estado = "";
+    const radios = cells[2].querySelectorAll("input[type=radio]");
+    radios.forEach(r => { if (r.checked) estado = r.value; });
+    registros.push({
+      area,
+      cantidad: cells[0].querySelector("input").value,
+      descripcion: cells[1].querySelector("input").value,
+      estado,
+      fecha_prestamo: cells[3].querySelector("input").value,
+      fecha_devolucion: cells[4].querySelector("input").value,
+      solicita: cells[5].querySelector("input").value,
+      autoriza: cells[6].querySelector("input").value
     });
+  });
 
-    const { data, error } = await supabase.from("prestamos").insert(registros);
+  // Reemplazado supabase.from por dbClient.from
+  const { data, error } = await dbClient.from("prestamos").insert(registros);
 
-    if (error) {
-      alert("❌ Error al guardar: " + error.message);
-    } else {
-      alert("✅ Datos guardados correctamente en Supabase");
-    }
+  if (error) {
+    alert("❌ Error al guardar: " + error.message);
+  } else {
+    alert("✅ Datos guardados correctamente en Supabase");
+  }
+}
+    
+async function verHistorial() {
+  // Reemplazado supabase.from por dbClient.from
+  const { data, error } = await dbClient.from("prestamos").select("*").order("id", { ascending: false });
+  if (error) {
+    alert("❌ Error al consultar historial: " + error.message);
+    return;
   }
 
-  async function verHistorial() {
-    const { data, error } = await supabase.from("prestamos").select("*").order("id", { ascending: false });
-    if (error) {
-      alert("❌ Error al consultar historial: " + error.message);
-      return;
-    }
-
-    let html = "<h3>Historial de préstamos</h3><table><thead><tr><th>ID</th><th>Área</th><th>Cantidad</th><th>Descripción</th><th>Estado</th><th>Fecha préstamo</th><th>Fecha devolución</th><th>Solicita</th><th>Autoriza</th><th>PDF</th></tr></thead><tbody>";
-    data.forEach(reg => {
-      html += `<tr>
-        <td>${reg.id}</td>
-        <td>${reg.area}</td>
-        <td>${reg.cantidad}</td>
-        <td>${reg.descripcion}</td>
-        <td>${reg.estado}</td>
-        <td>${reg.fecha_prestamo || ""}</td>
-        <td>${reg.fecha_devolucion || ""}</td>
-        <td>${reg.solicita}</td>
-        <td>${reg.autoriza}</td>
-        <td><button class="btn btn-pdf" onclick="generatePDFRegistro(${reg.id})">📄 PDF</button></td>
-      </tr>`;
-    });
-    html += "</tbody></table>";
-    document.getElementById("historial").innerHTML = html;
-  }
-
+  let html = "<h3>Historial de préstamos</h3><table><thead><tr><th>ID</th><th>Área</th><th>Cantidad</th><th>Descripción</th><th>Estado</th><th>Fecha préstamo</th><th>Fecha devolución</th><th>Solicita</th><th>Autoriza</th><th>PDF</th></tr></thead><tbody>";
+  data.forEach(reg => {
+    html += `<tr>
+      <td>${reg.id}</td>
+      <td>${reg.area}</td>
+      <td>${reg.cantidad}</td>
+      <td>${reg.descripcion}</td>
+      <td>${reg.estado}</td>
+      <td>${reg.fecha_prestamo || ""}</td>
+      <td>${reg.fecha_devolucion || ""}</td>
+      <td>${reg.solicita}</td>
+      <td>${reg.autoriza}</td>
+      <td><button class="btn btn-pdf" onclick="generatePDFRegistro(${reg.id})">📄 PDF</button></td>
+    </tr>`;
+  });
+  html += "</tbody></table>";
+  document.getElementById("historial").innerHTML = html;
+}
+  
   function generatePDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
@@ -236,43 +239,44 @@
     doc.save("Formato_Prestamo.pdf");
   }
 
-  async function generatePDFRegistro(id) {
-    const { data, error } = await supabase.from("prestamos").select("*").eq("id", id).single();
-    if (error) {
-      alert("❌ Error al generar PDF: " + error.message);
-      return;
-    }
-
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-
-    doc.setFontSize(12);
-    doc.text("JUNTA DISTRITAL EJECUTIVA 33", 105, 20, { align: "center" });
-    doc.text("VOCALÍA DE ORGANIZACIÓN ELECTORAL", 105, 30, { align: "center" });
-    doc.setFontSize(14);
-    doc.text("FORMATO DE PRÉSTAMOS DE MOBILIARIO Y MATERIAL ELÉCTRICO", 105, 45, { align: "center" });
-
-    doc.setFontSize(12);
-    doc.text("Área solicitante: " + data.area, 20, 65);
-
-    doc.autoTable({
-      head: [["Cantidad","Descripción","Estado","Fecha préstamo","Fecha devolución","Solicita","Autoriza"]],
-      body: [[data.cantidad, data.descripcion, data.estado, data.fecha_prestamo || "", data.fecha_devolucion || "", data.solicita, data.autoriza]],
-      startY: 80,
-      styles: { fontSize: 10, halign: "center" },
-      headStyles: { fillColor: [106, 13, 173] }
-    });
-
-    const finalY = doc.lastAutoTable.finalY + 30;
-    doc.setFontSize(12);
-    doc.text("Firma del solicitante", 50, finalY);
-    doc.text("Firma del que autoriza", 150, finalY);
-
-    doc.line(40, finalY - 5, 90, finalY - 5);
-    doc.line(140, finalY - 5, 190, finalY - 5);
-
-    doc.save("Prestamo_" + id + ".pdf");
+ async function generatePDFRegistro(id) {
+  // Reemplazado supabase.from por dbClient.from
+  const { data, error } = await dbClient.from("prestamos").select("*").eq("id", id).single();
+  if (error) {
+    alert("❌ Error al generar PDF: " + error.message);
+    return;
   }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  doc.setFontSize(12);
+  doc.text("JUNTA DISTRITAL EJECUTIVA 33", 105, 20, { align: "center" });
+  doc.text("VOCALÍA DE ORGANIZACIÓN ELECTORAL", 105, 30, { align: "center" });
+  doc.setFontSize(14);
+  doc.text("FORMATO DE PRÉSTAMOS DE MOBILIARIO Y MATERIAL ELÉCTRICO", 105, 45, { align: "center" });
+
+  doc.setFontSize(12);
+  doc.text("Área solicitante: " + data.area, 20, 65);
+
+  doc.autoTable({
+    head: [["Cantidad","Descripción","Estado","Fecha préstamo","Fecha devolución","Solicita","Autoriza"]],
+    body: [[data.cantidad, data.descripcion, data.estado, data.fecha_prestamo || "", data.fecha_devolucion || "", data.solicita, data.autoriza]],
+    startY: 80,
+    styles: { fontSize: 10, halign: "center" },
+    headStyles: { fillColor: [106, 13, 173] }
+  });
+
+  const finalY = doc.lastAutoTable.finalY + 30;
+  doc.setFontSize(12);
+  doc.text("Firma del solicitante", 50, finalY);
+  doc.text("Firma del que autoriza", 150, finalY);
+
+  doc.line(40, finalY - 5, 90, finalY - 5);
+  doc.line(140, finalY - 5, 190, finalY - 5);
+
+  doc.save("Prestamo_" + id + ".pdf");
+}
 </script>
 </body>
 </html>
