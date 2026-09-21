@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Formato de Préstamo</title>
+  <!-- Librerías locales en el mismo repositorio -->
+  <script src="jspdf.umd.min.js"></script>
+  <script src="jspdf.plugin.autotable.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h2, h3 { text-align: center; margin: 5px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 15px; }
+    th, td { border: 1px solid #333; padding: 6px; text-align: center; }
+    th { background-color: #6a0dad; color: white; }
+    .btn { background-color: #6a0dad; color: white; padding: 8px 12px; border: none; cursor: pointer; margin-top: 10px; }
+    .btn:hover { background-color: #2c2c54; }
+  </style>
+</head>
+<body>
+  <h3>JUNTA DISTRITAL EJECUTIVA 33</h3>
+  <h3>VOCALÍA DE ORGANIZACIÓN ELECTORAL</h3>
+  <h2>FORMATO DE PRÉSTAMOS DE MOBILIARIO Y MATERIAL ELÉCTRICO</h2>
+
+  <label>Área solicitante:</label>
+  <select id="areaSolicitante">
+    <option value="VE">VE</option>
+    <option value="VS">VS</option>
+    <option value="VCEyEC">VCEyEC</option>
+    <option value="VRFE">VRFE</option>
+  </select>
+
+  <table id="materialTable">
+    <thead>
+      <tr>
+        <th>Cantidad</th>
+        <th>Descripción del material</th>
+        <th>Estado</th>
+        <th>Fecha préstamo</th>
+        <th>Fecha devolución</th>
+        <th>Solicita</th>
+        <th>Autoriza</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><input type="number"></td>
+        <td><input type="text"></td>
+        <td>
+          <label><input type="radio" name="estado0" value="Bueno"> Bueno</label>
+          <label><input type="radio" name="estado0" value="Regular"> Regular</label>
+          <label><input type="radio" name="estado0" value="Malo"> Malo</label>
+        </td>
+        <td><input type="date"></td>
+        <td><input type="date"></td>
+        <td><input type="text"></td>
+        <td><input type="text"></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <button class="btn" onclick="addRow()">Agregar material</button>
+  <button class="btn" onclick="generatePDF()">Generar PDF</button>
+
+  <script>
+    let rowCount = 1;
+
+    function addRow() {
+      const tbody = document.querySelector("#materialTable tbody");
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td><input type="number"></td>
+        <td><input type="text"></td>
+        <td>
+          <label><input type="radio" name="estado${rowCount}" value="Bueno"> Bueno</label>
+          <label><input type="radio" name="estado${rowCount}" value="Regular"> Regular</label>
+          <label><input type="radio" name="estado${rowCount}" value="Malo"> Malo</label>
+        </td>
+        <td><input type="date"></td>
+        <td><input type="date"></td>
+        <td><input type="text"></td>
+        <td><input type="text"></td>
+      `;
+      tbody.appendChild(row);
+      rowCount++;
+    }
+
+    function generatePDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      // Encabezado institucional
+      doc.setFontSize(12);
+      doc.text("JUNTA DISTRITAL EJECUTIVA 33", 105, 20, { align: "center" });
+      doc.text("VOCALÍA DE ORGANIZACIÓN ELECTORAL", 105, 30, { align: "center" });
+      doc.setFontSize(14);
+      doc.text("FORMATO DE PRÉSTAMOS DE MOBILIARIO Y MATERIAL ELÉCTRICO", 105, 45, { align: "center" });
+
+      // Área solicitante
+      const area = document.getElementById("areaSolicitante").value;
+      doc.setFontSize(12);
+      doc.text("Área solicitante: " + area, 20, 65);
+
+      // Construir tabla para PDF
+      const rows = [];
+      const tableRows = document.querySelectorAll("#materialTable tbody tr");
+      tableRows.forEach((tr, i) => {
+        const cells = tr.querySelectorAll("td");
+        let estado = "";
+        const radios = cells[2].querySelectorAll("input[type=radio]");
+        radios.forEach(r => { if (r.checked) estado = r.value; });
+        rows.push([
+          cells[0].querySelector("input").value,
+          cells[1].querySelector("input").value,
+          estado,
+          cells[3].querySelector("input").value,
+          cells[4].querySelector("input").value,
+          cells[5].querySelector("input").value,
+          cells[6].querySelector("input").value
+        ]);
+      });
+
+      doc.autoTable({
+        head: [["Cantidad","Descripción","Estado","Fecha préstamo","Fecha devolución","Solicita","Autoriza"]],
+        body: rows,
+        startY: 80,
+        styles: { fontSize: 10, halign: "center" },
+        headStyles: { fillColor: [106, 13, 173] }
+      });
+
+      doc.save("Formato_Prestamo.pdf");
+    }
+  </script>
+</body>
+</html>
