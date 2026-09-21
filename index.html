@@ -12,8 +12,10 @@
     table { border-collapse: collapse; width: 100%; margin-top: 15px; }
     th, td { border: 1px solid #333; padding: 6px; text-align: center; }
     th { background-color: #6a0dad; color: white; }
-    .btn { background-color: #6a0dad; color: white; padding: 8px 12px; border: none; cursor: pointer; margin-top: 10px; }
+    .btn { background-color: #6a0dad; color: white; padding: 8px 12px; border: none; cursor: pointer; margin: 5px; }
     .btn:hover { background-color: #2c2c54; }
+    .delete-btn { background-color: crimson; color: white; padding: 4px 8px; border: none; cursor: pointer; }
+    .delete-btn:hover { background-color: darkred; }
   </style>
 </head>
 <body>
@@ -39,6 +41,7 @@
         <th>Fecha devolución</th>
         <th>Solicita</th>
         <th>Autoriza</th>
+        <th>Acción</th>
       </tr>
     </thead>
     <tbody>
@@ -54,11 +57,13 @@
         <td><input type="date"></td>
         <td><input type="text"></td>
         <td><input type="text"></td>
+        <td><button class="delete-btn" onclick="deleteRow(this)">Borrar</button></td>
       </tr>
     </tbody>
   </table>
 
   <button class="btn" onclick="addRow()">Agregar material</button>
+  <button class="btn" onclick="clearTable()">Limpiar todo</button>
   <button class="btn" onclick="generatePDF()">Generar PDF</button>
 
   <script>
@@ -79,9 +84,22 @@
         <td><input type="date"></td>
         <td><input type="text"></td>
         <td><input type="text"></td>
+        <td><button class="delete-btn" onclick="deleteRow(this)">Borrar</button></td>
       `;
       tbody.appendChild(row);
       rowCount++;
+    }
+
+    function deleteRow(button) {
+      const row = button.closest("tr");
+      row.remove();
+    }
+
+    function clearTable() {
+      const tbody = document.querySelector("#materialTable tbody");
+      tbody.innerHTML = "";
+      rowCount = 0;
+      addRow(); // agrega una fila inicial vacía
     }
 
     function generatePDF() {
@@ -126,6 +144,15 @@
         styles: { fontSize: 10, halign: "center" },
         headStyles: { fillColor: [106, 13, 173] }
       });
+
+      // Firmas al final del PDF
+      const finalY = doc.lastAutoTable.finalY + 30;
+      doc.setFontSize(12);
+      doc.text("Firma del solicitante", 50, finalY);
+      doc.text("Firma del que autoriza", 150, finalY);
+
+      doc.line(40, finalY - 5, 90, finalY - 5);
+      doc.line(140, finalY - 5, 190, finalY - 5);
 
       doc.save("Formato_Prestamo.pdf");
     }
