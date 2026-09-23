@@ -78,34 +78,35 @@
       </tbody>
  </table>
 
-    <button class="btn btn-add" onclick="addRow()">➕ Agregar material</button>
+   <button class="btn btn-add" onclick="addRow()">➕ Agregar material</button>
     <button class="btn btn-clear" onclick="clearTable()">🧹 Limpiar todo</button>
     <button class="btn btn-add" onclick="guardarEnBD()">💾 Guardar en BD</button>
-    <!-- Cambiamos el onclick y agregamos el ID -->
+    <!-- Botón de historial -->
     <button id="btnHistorial" class="btn btn-history" onclick="toggleHistorial()">📜 Ver historial</button>
     <button class="btn btn-pdf" onclick="generatePDF()">📄 Generar PDF</button>
 
 <!-- Contenedor del historial -->
-        <div id="historial" style="display: none; margin-top: 20px;"></div>
-      </main>
+    <div id="historial" style="display: none; margin-top: 20px;"></div>
+  </main>
 
-      <!-- 👉 MODAL FLOTANTE -->
-      <div id="modalEditar" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
-        <div style="background: white; padding: 25px; border-radius: 8px; width: 90%; max-width: 400px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
-          <h3>✏️ Editar Préstamo #<span id="editIdLabel"></span></h3>
-          <input type="hidden" id="editIdRegistro">
+  <!-- 👉 MODAL FLOTANTE PARA EDITAR DEVOLUCIONES POR ARTÍCULO -->
+  <div id="modalEditar" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;">
+    <div style="background: white; padding: 25px; border-radius: 8px; width: 90%; max-width: 550px; max-height: 85vh; overflow-y: auto; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+      <h3>✏️ Devoluciones por Artículo - Solicitud #<span id="editIdLabel"></span></h3>
+      <input type="hidden" id="editIdRegistro">
 
-          <div style="margin-bottom: 15px; margin-top: 15px;">
-            <label style="display: block; font-weight: bold; margin-bottom: 5px;">Fecha de Devolución:</label>
-            <input type="date" id="editFechaDevolucion" style="width: 100%; padding: 8px; box-sizing: border-box;">
-          </div>
+      <p style="font-size: 13px; color: #555; margin-bottom: 15px;">Asigna la fecha de devolución correspondiente a cada artículo que haya sido regresado:</p>
 
-          <div style="text-align: right; display: flex; justify-content: flex-end; gap: 10px;">
-            <button class="btn" style="background-color: #666;" onclick="cerrarModalEditar()">Cancelar</button>
-            <button class="btn" style="background-color: #10b981;" onclick="guardarCambiosEdicion()">💾 Actualizar</button>
-          </div>
-        </div>
+      <!-- Contenedor dinámico donde se listarán los artículos -->
+      <div id="editArticulosContainer" style="margin-bottom: 20px;"></div>
+
+      <div style="text-align: right; display: flex; justify-content: flex-end; gap: 10px;">
+        <button class="btn" style="background-color: #666;" onclick="cerrarModalEditar()">Cancelar</button>
+        <button class="btn" style="background-color: #10b981;" onclick="guardarCambiosEdicion()">💾 Guardar Cambios</button>
       </div>
+    </div>
+  </div>
+
   <!-- Script único -->
 <script>
   const supabaseUrl = "https://tfcmjoqgypsdbjsdqkav.supabase.co";
@@ -149,18 +150,16 @@
     addRow();
   }
 
-  // FUNCIÓN UNIFICADA Y CORREGIDA PARA GUARDAR EN solicitudes_prestamo
-async function guardarEnBD() {
+  // FUNCIÓN PARA GUARDAR EN solicitudes_prestamo
+  async function guardarEnBD() {
     const area = document.getElementById("areaSolicitante").value.trim();
     const tableRows = document.querySelectorAll("#materialTable tbody tr");
 
-    // 1. Validar que el área solicitante no esté vacía
     if (!area) {
       alert("❌ El campo 'Área solicitante' es obligatorio.");
       return;
     }
 
-    // 2. Validar que la tabla tenga al menos un renglón
     if (tableRows.length === 0) {
       alert("❌ Debe agregar al menos un artículo a la solicitud.");
       return;
@@ -183,7 +182,6 @@ async function guardarEnBD() {
       const cantidadVal = cells[0].querySelector("input").value.trim();
       const descripcionVal = cells[1].querySelector("input").value.trim();
 
-      // Validar que cada artículo tenga cantidad y descripción
       if (!cantidadVal || !descripcionVal) {
         datosCompletos = false;
         mensajeError = "Todos los artículos deben tener cantidad y descripción.";
@@ -192,10 +190,10 @@ async function guardarEnBD() {
       listaArticulos.push({
         cantidad: cantidadVal !== "" ? parseInt(cantidadVal, 10) : 0,
         descripcion: descripcionVal,
-        estado: estado
+        estado: estado,
+        fecha_devolucion: null // Inicialmente sin fecha de devolución individual
       });
 
-      // Tomamos los datos generales de la solicitud (del primer renglón)
       if (index === 0) {
         fechaPrestamoGlobal = cells[3].querySelector("input").value.trim();
         fechaDevolucionGlobal = cells[4].querySelector("input").value.trim();
@@ -204,13 +202,11 @@ async function guardarEnBD() {
       }
     });
 
-    // 3. Validar campos obligatorios globales (Fecha de préstamo, Solicita y Autoriza)
     if (!fechaPrestamoGlobal || !solicitaGlobal || !autorizaGlobal) {
       datosCompletos = false;
       mensajeError = "Los campos de 'Fecha de préstamo', 'Solicita' y 'Autoriza' en el primer renglón son obligatorios.";
     }
 
-    // Si falta algún dato obligatorio, detenemos el proceso y alertamos al usuario
     if (!datosCompletos) {
       alert("❌ Faltan datos obligatorios: " + mensajeError);
       return;
@@ -226,12 +222,9 @@ async function guardarEnBD() {
       creado: new Date().toISOString()
     };
 
-    console.log("Enviando solicitud a Supabase:", nuevaSolicitud);
-
     const { data, error } = await dbClient.from("solicitudes_prestamo").insert([nuevaSolicitud]);
 
     if (error) {
-      console.error("Detalle del error de Supabase:", error);
       alert("❌ Error al guardar la solicitud en la BD: " + error.message);
     } else {
       alert("✅ ¡Solicitud guardada correctamente!");
@@ -239,14 +232,13 @@ async function guardarEnBD() {
     }
   }
 
-  let historialVisible = false; // Estado inicial
+  let historialVisible = false;
 
   async function toggleHistorial() {
     const contenedor = document.getElementById("historial");
     const boton = document.getElementById("btnHistorial");
 
     if (!historialVisible) {
-      // Si está oculto, consultamos los datos a Supabase
       const { data, error } = await dbClient.from("solicitudes_prestamo").select("*").order("id", { ascending: false });
       
       if (error) {
@@ -260,12 +252,16 @@ async function guardarEnBD() {
         let listaArticulosHtml = "<ul style='margin: 0; padding-left: 15px; text-align: left;'>";
         if (reg.articulos && Array.isArray(reg.articulos)) {
           reg.articulos.forEach(art => {
-            listaArticulosHtml += `<li><b>${art.cantidad}</b> - ${art.descripcion} (<i>${art.estado}</i>)</li>`;
+            let estadoDevolucion = art.fecha_devolucion 
+              ? `<span style="color: #059669; font-weight: bold;">(Devuelto: ${art.fecha_devolucion})</span>` 
+              : `<span style="color: #d97706;">(Pendiente de devolución)</span>`;
+
+            listaArticulosHtml += `<li style="margin-bottom: 4px;"><b>${art.cantidad}</b> - ${art.descripcion} (<i>${art.estado}</i>) <br>${estadoDevolucion}</li>`;
           });
         }
         listaArticulosHtml += "</ul>";
 
-  html += `<tr>
+        html += `<tr>
           <td><b>#${reg.id}</b></td>
           <td>${reg.area}</td>
           <td>${reg.fecha_prestamo || "N/A"}</td>
@@ -282,27 +278,22 @@ async function guardarEnBD() {
       html += "</tbody></table>";
       contenedor.innerHTML = html;
       
-      // Mostramos el contenedor y actualizamos el botón
       contenedor.style.display = "block";
       boton.textContent = "📂 Ocultar historial";
       boton.style.backgroundColor = "#555"; 
       historialVisible = true;
     } else {
-      // Si ya está visible, lo ocultamos
       contenedor.style.display = "none";
       boton.textContent = "📜 Ver historial";
       boton.style.backgroundColor = ""; 
       historialVisible = false;
     }
   }
- // Ejemplo aplicado para generatePDF (puedes replicarlo igual en generatePDFRegistro)
+
   async function generatePDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
 
-    // 1. Agregar Logotipo en la esquina superior izquierda
-    // Parámetros: (imagen, formato, x, y, ancho, alto)
-    // Nota: Puedes usar una URL directa de tu repositorio (ej. "./logo_ine.png") o una cadena en Base64
     try {
       const logoUrl = "./INE_logo.png";
       doc.addImage(logoUrl, "PNG", 15, 12, 25, 25); 
@@ -310,7 +301,6 @@ async function guardarEnBD() {
       console.warn("No se pudo cargar el logotipo automáticamente:", e);
     }
 
-    // 2. Encabezados institucionales (ajustados para no encimarse con el logo)
     doc.setFontSize(11);
     doc.text("JUNTA DISTRITAL EJECUTIVA 33", 110, 18, { align: "center" });
     doc.text("VOCALÍA DE ORGANIZACIÓN ELECTORAL", 110, 25, { align: "center" });
@@ -322,10 +312,9 @@ async function guardarEnBD() {
     doc.setFontSize(12);
     doc.text("Área solicitante: " + area, 20, 55);
 
-    // 3. Recorrido de la tabla para el PDF
     const rows = [];
     const tableRows = document.querySelectorAll("#materialTable tbody tr");
-    tableRows.forEach((tr, i) => {
+    tableRows.forEach((tr) => {
       const cells = tr.querySelectorAll("td");
       let estado = "";
       const radios = cells[2].querySelectorAll("input[type=radio]");
@@ -344,7 +333,7 @@ async function guardarEnBD() {
     doc.autoTable({
       head: [["Cantidad","Descripción","Estado","Fecha préstamo","Fecha devolución","Solicita","Autoriza"]],
       body: rows,
-      startY: 65, // Ajustado para dar espacio al nuevo encabezado
+      startY: 65,
       styles: { fontSize: 10, halign: "center" },
       headStyles: { fillColor: [106, 13, 173] }
     });
@@ -359,6 +348,7 @@ async function guardarEnBD() {
 
     doc.save("Formato_Prestamo.pdf");
   }
+
   async function generatePDFRegistro(id) {
     const { data, error } = await dbClient.from("solicitudes_prestamo").select("*").eq("id", id).single();
     if (error) {
@@ -387,7 +377,7 @@ async function guardarEnBD() {
           art.descripcion,
           art.estado,
           data.fecha_prestamo || "",
-          data.fecha_devolucion || "",
+          art.fecha_devolucion || "Pendiente",
           data.solicita,
           data.autoriza
         ]);
@@ -412,7 +402,8 @@ async function guardarEnBD() {
 
     doc.save("Solicitud_Prestamo_" + id + ".pdf");
   }
-  // Abrir el modal y cargar los datos actuales del registro
+
+  // 1. Abrir el modal y generar campos de fecha individuales para cada artículo
   async function abrirModalEditar(id) {
     const { data, error } = await dbClient.from("solicitudes_prestamo").select("*").eq("id", id).single();
     
@@ -421,41 +412,69 @@ async function guardarEnBD() {
       return;
     }
 
-    // Asignamos los valores a los inputs del modal
     document.getElementById("editIdRegistro").value = data.id;
     document.getElementById("editIdLabel").textContent = data.id;
-    document.getElementById("editFechaDevolucion").value = data.fecha_devolucion || "";
 
-    // Mostramos el modal
+    const container = document.getElementById("editArticulosContainer");
+    let html = "";
+
+    if (data.articulos && Array.isArray(data.articulos)) {
+      data.articulos.forEach((art, index) => {
+        html += `
+          <div style="border: 1px solid #e5e7eb; padding: 12px; border-radius: 6px; margin-bottom: 10px; background: #f9fafb;">
+            <div style="margin-bottom: 6px; font-size: 14px;">
+              <b>Cantidad: ${art.cantidad}</b> - ${art.descripcion} <br>
+              <small style="color: #6b7280;">Estado inicial: ${art.estado}</small>
+            </div>
+            <label style="display: block; font-weight: bold; font-size: 12px; margin-bottom: 3px;">Fecha de devolución de este artículo:</label>
+            <input type="date" class="form-control art-dev-fecha" data-index="${index}" value="${art.fecha_devolucion || ""}" style="width: 100%; padding: 6px; box-sizing: border-box; border: 1px solid #d1d5db; border-radius: 4px;">
+          </div>
+        `;
+      });
+    }
+
+    container.innerHTML = html;
     document.getElementById("modalEditar").style.display = "flex";
   }
 
-  // Cerrar el modal
+  // 2. Cerrar el modal
   function cerrarModalEditar() {
     document.getElementById("modalEditar").style.display = "none";
   }
 
-  // Guardar la nueva fecha de devolución en Supabase
+  // 3. Guardar las fechas individuales de cada artículo en Supabase
   async function guardarCambiosEdicion() {
     const id = document.getElementById("editIdRegistro").value;
-    const nuevaFechaDevolucion = document.getElementById("editFechaDevolucion").value;
 
-    const { error } = await dbClient
-      .from("solicitudes_prestamo")
-      .update({ 
-        fecha_devolucion: nuevaFechaDevolucion !== "" ? nuevaFechaDevolucion : null 
-      })
-      .eq("id", id);
-
-    if (error) {
-      alert("❌ Error al actualizar: " + error.message);
+    const { data: currentData, error: fetchError } = await dbClient.from("solicitudes_prestamo").select("articulos").eq("id", id).single();
+    
+    if (fetchError) {
+      alert("❌ Error al recuperar los artículos: " + fetchError.message);
       return;
     }
 
-    alert("✅ ¡Fecha de devolución actualizada correctamente!");
+    let articulosActualizados = currentData.articulos;
+    const inputsFechas = document.querySelectorAll(".art-dev-fecha");
+
+    inputsFechas.forEach(input => {
+      const index = input.getAttribute("data-index");
+      const nuevaFecha = input.value;
+      articulosActualizados[index].fecha_devolucion = nuevaFecha !== "" ? nuevaFecha : null;
+    });
+
+    const { error } = await dbClient
+      .from("solicitudes_prestamo")
+      .update({ articulos: articulosActualizados })
+      .eq("id", id);
+
+    if (error) {
+      alert("❌ Error al actualizar las devoluciones: " + error.message);
+      return;
+    }
+
+    alert("✅ ¡Devoluciones por artículo actualizadas correctamente!");
     cerrarModalEditar();
     
-    // Recargamos el historial automáticamente para reflejar el cambio
     historialVisible = false; 
     toggleHistorial();        
   }
