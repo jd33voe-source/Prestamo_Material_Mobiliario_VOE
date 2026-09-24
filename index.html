@@ -462,6 +462,7 @@
   }
 
   // 3. Guardar cambios considerando la fecha de devolución
+  // 3. Guardar cambios considerando la fecha de devolución de forma segura
   async function guardarCambiosEdicion() {
     const id = document.getElementById("editIdRegistro").value;
 
@@ -475,14 +476,17 @@
     let nuevosArticulos = [];
     const bloquesArticulos = document.querySelectorAll("#editArticulosContainer > div");
 
-    for (let bloque of bloquesArticulos) {
+    bloquesArticulos.forEach((bloque) => {
       const index = bloque.getAttribute("data-index");
       const artOriginal = currentData.articulos[index];
       
-      let cantDevueltaInput = parseInt(bloque.querySelector(".edit-cant-dev").value) || 0;
-      const fechaDevInput = bloque.querySelector(".edit-fecha-dev").value;
+      const inputCant = bloque.querySelector(".edit-cant-dev");
+      const inputFecha = bloque.querySelector(".edit-fecha-dev");
 
-      // Si puso una fecha pero la cantidad estaba en 0, asumimos que devuelve todo el artículo
+      let cantDevueltaInput = parseInt(inputCant.value) || 0;
+      const fechaDevInput = inputFecha.value;
+
+      // Si seleccionó fecha pero la cantidad es 0, asumimos que devuelve el total de ese artículo
       if (fechaDevInput && cantDevueltaInput <= 0) {
         cantDevueltaInput = artOriginal.cantidad;
       }
@@ -524,7 +528,7 @@
           fecha_devolucion: null
         });
       }
-    }
+    });
 
     const { error } = await dbClient
       .from("solicitudes_prestamo")
@@ -539,6 +543,7 @@
     alert("✅ ¡Devoluciones actualizadas correctamente!");
     cerrarModalEditar();
     
+    // Forzar la recarga visual del historial
     historialVisible = false; 
     toggleHistorial();        
   }</script>
