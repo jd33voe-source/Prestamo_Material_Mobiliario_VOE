@@ -410,6 +410,7 @@
   }
 
   // 1. Abrir el modal permitiendo fraccionar cantidades
+// 1. Abrir el modal permitiendo fraccionar cantidades
   async function abrirModalEditar(id) {
     const { data, error } = await dbClient.from("solicitudes_prestamo").select("*").eq("id", id).single();
     
@@ -426,6 +427,9 @@
 
     if (data.articulos && Array.isArray(data.articulos)) {
       data.articulos.forEach((art, index) => {
+        // Si ya tiene fecha, ponemos su cantidad devuelta o el total; si no, ponemos el total por defecto para facilitar la devolución completa
+        let cantSugerida = art.fecha_devolucion ? (art.cantidad_devuelta || art.cantidad) : art.cantidad;
+
         html += `
           <div style="border: 1px solid #e5e7eb; padding: 12px; border-radius: 6px; margin-bottom: 12px; background: #f9fafb;" data-index="${index}">
             <div style="margin-bottom: 8px; font-size: 14px;">
@@ -435,11 +439,11 @@
             
             <div style="display: flex; gap: 10px; align-items: center;">
               <div style="flex: 1;">
-                <label style="display: block; font-weight: bold; font-size: 11px; margin-bottom: 2px;">A devolver ahora:</label>
-                <input type="number" class="form-control edit-cant-dev" min="0" max="${art.cantidad}" value="${art.fecha_devolucion ? (art.cantidad_devuelta || art.cantidad) : 0}" style="width: 100%; padding: 6px; box-sizing: border-box; border: 1px solid #d1d5db; border-radius: 4px;">
+                <label style="display: block; font-weight: bold; font-size: 11px; margin-bottom: 2px;">A devolver:</label>
+                <input type="number" class="form-control edit-cant-dev" min="0" max="${art.cantidad}" value="${cantSugerida}" style="width: 100%; padding: 6px; box-sizing: border-box; border: 1px solid #d1d5db; border-radius: 4px;">
               </div>
               <div style="flex: 2;">
-                <label style="display: block; font-weight: bold; font-size: 11px; margin-bottom: 2px;">Fecha de devolución:</label>
+                <label style="display: block; font-weight: bold; font-size: 11px; margin-bottom: 2px;">Fecha de devolución (Dejar en blanco si sigue pendiente):</label>
                 <input type="date" class="form-control edit-fecha-dev" value="${art.fecha_devolucion || ""}" style="width: 100%; padding: 6px; box-sizing: border-box; border: 1px solid #d1d5db; border-radius: 4px;">
               </div>
             </div>
@@ -457,7 +461,7 @@
     document.getElementById("modalEditar").style.display = "none";
   }
 
-  // 3. Guardar cambios y separar automáticamente si hay devolución parcial
+  // 3. Guardar cambios considerando la fecha de devolución
   async function guardarCambiosEdicion() {
     const id = document.getElementById("editIdRegistro").value;
 
@@ -471,19 +475,20 @@
     let nuevosArticulos = [];
     const bloquesArticulos = document.querySelectorAll("#editArticulosContainer > div");
 
-    bloquesArticulos.forEach((bloque) => {
+    for (let bloque of bloquesArticulos) {
       const index = bloque.getAttribute("data-index");
       const artOriginal = currentData.articulos[index];
       
-      const cantDevueltaInput = parseInt(bloque.querySelector(".edit-cant-dev").value) || 0;
+      let cantDevueltaInput = parseInt(bloque.querySelector(".edit-cant-dev").value) || 0;
       const fechaDevInput = bloque.querySelector(".edit-fecha-dev").value;
 
-      if (cantDevueltaInput > 0 && !fechaDevInput) {
-        alert(`❌ Debes indicar la fecha de devolución para el artículo: "${artOriginal.descripcion}"`);
-        throw new Error("Falta fecha");
+      // Si puso una fecha pero la cantidad estaba en 0, asumimos que devuelve todo el artículo
+      if (fechaDevInput && cantDevueltaInput <= 0) {
+        cantDevueltaInput = artOriginal.cantidad;
       }
 
-      if (cantDevueltaInput <= 0) {
+      // Si no hay fecha o la cantidad a devolver es 0, se queda pendiente
+      if (!fechaDevInput || cantDevueltaInput <= 0) {
         nuevosArticulos.push({
           cantidad: artOriginal.cantidad,
           descripcion: artOriginal.descripcion,
@@ -492,6 +497,7 @@
           fecha_devolucion: null
         });
       } else if (cantDevueltaInput >= artOriginal.cantidad) {
+        // Se devolvió todo el lote
         nuevosArticulos.push({
           cantidad: artOriginal.cantidad,
           descripcion: artOriginal.descripcion,
@@ -500,7 +506,7 @@
           fecha_devolucion: fechaDevInput
         });
       } else {
-        // Se separan en dos líneas: los devueltos y el remanente pendiente
+        // Devolución parcial: se divide en dos líneas (devuelto y remanente pendiente)
         nuevosArticulos.push({
           cantidad: cantDevueltaInput,
           descripcion: artOriginal.descripcion + " (Parcial devuelto)",
@@ -518,7 +524,7 @@
           fecha_devolucion: null
         });
       }
-    });
+    }
 
     const { error } = await dbClient
       .from("solicitudes_prestamo")
@@ -530,12 +536,11 @@
       return;
     }
 
-    alert("✅ ¡Devoluciones parciales actualizadas y separadas correctamente!");
+    alert("✅ ¡Devoluciones actualizadas correctamente!");
     cerrarModalEditar();
     
     historialVisible = false; 
     toggleHistorial();        
-  }
-</script>
+  }</script>
 </body>
 </html>
