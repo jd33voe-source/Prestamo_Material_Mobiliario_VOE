@@ -192,6 +192,7 @@
         cantidad: cantidadVal !== "" ? parseInt(cantidadVal, 10) : 0,
         descripcion: descripcionVal,
         estado: estado,
+        cantidad_devuelta: 0,
         fecha_devolucion: null 
       });
 
@@ -325,7 +326,7 @@
         cells[1].querySelector("input").value,
         estado,
         cells[3].querySelector("input").value,
-        cells[4].querySelector("input").value,
+        cells[4].querySelector("input").value || "Pendiente",
         cells[5].querySelector("input").value,
         cells[6].querySelector("input").value
       ]);
@@ -350,6 +351,7 @@
     doc.save("Formato_Prestamo.pdf");
   }
 
+  // PDF ACTUALIZADO PARA REFLEJAR DEVOLUCIONES PARCIALES Y SEPARADAS
   async function generatePDFRegistro(id) {
     const { data, error } = await dbClient.from("solicitudes_prestamo").select("*").eq("id", id).single();
     if (error) {
@@ -373,12 +375,15 @@
     const rows = [];
     if (data.articulos && Array.isArray(data.articulos)) {
       data.articulos.forEach(art => {
+        // Mostramos la fecha individual del artículo, o 'Pendiente' si no ha regresado
+        let fechaDevCell = art.fecha_devolucion ? art.fecha_devolucion : "Pendiente";
+
         rows.push([
           art.cantidad,
           art.descripcion,
           art.estado,
           data.fecha_prestamo || "",
-          art.fecha_devolucion || "Pendiente",
+          fechaDevCell,
           data.solicita,
           data.autoriza
         ]);
@@ -421,14 +426,11 @@
 
     if (data.articulos && Array.isArray(data.articulos)) {
       data.articulos.forEach((art, index) => {
-        // Si ya está devuelto por completo, mostramos su estatus fijo, si no, permitimos editar/fraccionar
-        let devueltoTotalmente = art.fecha_devolucion && art.cantidad_devuelta === art.cantidad;
-
         html += `
           <div style="border: 1px solid #e5e7eb; padding: 12px; border-radius: 6px; margin-bottom: 12px; background: #f9fafb;" data-index="${index}">
             <div style="margin-bottom: 8px; font-size: 14px;">
               <b>Descripción:</b> ${art.descripcion} <br>
-              <small style="color: #6b7280;">Cantidad total prestada: <b>${art.cantidad}</b> | Estado: ${art.estado}</small>
+              <small style="color: #6b7280;">Cantidad total: <b>${art.cantidad}</b> | Estado: ${art.estado}</small>
             </div>
             
             <div style="display: flex; gap: 10px; align-items: center;">
@@ -482,7 +484,6 @@
       }
 
       if (cantDevueltaInput <= 0) {
-        // Sigue pendiente por completo
         nuevosArticulos.push({
           cantidad: artOriginal.cantidad,
           descripcion: artOriginal.descripcion,
@@ -491,7 +492,6 @@
           fecha_devolucion: null
         });
       } else if (cantDevueltaInput >= artOriginal.cantidad) {
-        // Se devolvió todo el lote de este renglón
         nuevosArticulos.push({
           cantidad: artOriginal.cantidad,
           descripcion: artOriginal.descripcion,
@@ -500,8 +500,7 @@
           fecha_devolucion: fechaDevInput
         });
       } else {
-        // DEVOLUCIÓN PARCIAL: Separar en dos elementos dentro del arreglo
-        // 1. El que SÍ se devolvió
+        // Se separan en dos líneas: los devueltos y el remanente pendiente
         nuevosArticulos.push({
           cantidad: cantDevueltaInput,
           descripcion: artOriginal.descripcion + " (Parcial devuelto)",
@@ -510,7 +509,6 @@
           fecha_devolucion: fechaDevInput
         });
 
-        // 2. El remanente que SE QUEDA PENDIENTE
         const pendiente = artOriginal.cantidad - cantDevueltaInput;
         nuevosArticulos.push({
           cantidad: pendiente,
